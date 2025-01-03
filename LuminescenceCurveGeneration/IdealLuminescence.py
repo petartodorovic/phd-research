@@ -24,6 +24,17 @@ from typing import Dict, Tuple, Optional
 # Adding a DataClass for Plot Settings which are initialized at the beginning
 @dataclass
 class PlotSettings:
+    """
+   Configuration settings for plot visualization.
+
+   Attributes:
+       figsize (Tuple[int, int]): Figure dimensions (width, height) in inches. Defaults to (8,6).
+       font_size (Dict[str, int]): Font sizes for plot elements:
+           'ticks': Axis tick labels (default: 14)
+           'labels': Axis labels (default: 18)
+           'title': Plot title (default: 20)
+       y_limits (Tuple[float, float]): Y-axis limits (min, max). Defaults to (-0.001, 1.05).
+   """
     figsize: Tuple[int, int] = (8,6)
     font_size: Dict[str, int] = field(default_factory = lambda: {
         'ticks': 14,
@@ -34,30 +45,54 @@ class PlotSettings:
 
 class LuminescenceSpectra:
     """
-    A class representing an ideal, symmetric Gaussian-like emission spectra (i.e., if you were to observe an ideal luminescence profile).
+    Generates and analyzes ideal Gaussian emission spectra.
+
+    Attributes:
+       SPECTRAL_RANGES (Dict[str, Tuple[float, float]]): Wavelength ranges (nm) mapped to colors,
+            spanning from 100nm to 1500nm across UV, visible, and IR regions.
     """
     # Creating a dictionary of Spectral Ranges for colour matching post spectra generation for the visible region
     # @TODO Consider outside of the visible spectrum 
     SPECTRAL_RANGES = {
+        'indigo': (100, 200),
+        'darkviolet': (200, 280),
+        'blueviolet': (380, 315),
+        'darkorchid': (315, 380),
         'violet': (380, 450),
         'blue': (450, 475),
         'cyan': (475, 495),
         'green': (495, 570),
         'yellow': (570, 590),
         'orange': (590, 620),
-        'red': (620, 800)
+        'red': (620, 800),
+        'indianred': (800, 1500)
     }
     # 
     def __init__(self, 
                     center_wv: float, 
                     fwhm: float = 25, 
-                    wavelength_range: Tuple[float, float] = (390, 830),
+                    wavelength_range: Tuple[float, float] = (100, 1500),
                     num_points: int = 441):
         """
-        Initialise the LuminescenceSpectra object.
-        Assumption 1: A full-width at half-maximum of 25 (units in nm)
-        Assumption 2: The generated luminescence spectra follows a Gaussian normal like distribution
+        Initialize a LuminescenceSpectra object for generating Gaussian emission profiles.
 
+        Args:
+            center_wv (float): Center wavelength (nm) of the emission peak
+            fwhm (float, optional): Full Width at Half Maximum in nm. Defaults to 25.
+            wavelength_range (Tuple[float, float], optional): Min and max wavelength range (nm). 
+                Defaults to (100, 1500).
+            num_points (int, optional): Number of points to generate in wavelength range. 
+                Defaults to 441.
+
+        Attributes:
+            center_wv (float): Center wavelength of emission
+            fwhm (float): Full Width at Half Maximum
+            std_dev (float): Standard deviation calculated from FWHM
+            xvals (ndarray): Array of wavelength points
+            df_ideal (DataFrame): Generated spectra data (None until generate_spectra called)
+
+        Note:
+            Assumes Gaussian (normal) distribution for emission profile
         """
         
         self._validate_inputs(center_wv, fwhm, wavelength_range)
@@ -80,7 +115,18 @@ class LuminescenceSpectra:
     def _validate_inputs(center_wv: float, 
                         fwhm: float, 
                         wavelength_range: Tuple[float, float]) -> None:
-        
+        """
+        Validates the input parameters for the LuminescenceSpectra class.
+
+        Args:
+            center_wv (float): Center wavelength (nm)
+            fwhm (float): Full Width at Half Maximum (nm)
+            wavelength_range (Tuple[float, float]): Min and max wavelength values (nm)
+
+        Raises:
+            ValueError: If center_wv is outside wavelength_range, fwhm is non-positive,
+                        or wavelength range is invalid (min >= max)
+        """
         if not (wavelength_range[0] < center_wv < wavelength_range[1]):
             raise ValueError("Center wavelength must be within wavelength range")
 
@@ -91,17 +137,42 @@ class LuminescenceSpectra:
             raise ValueError("Invalid wavelength range")
 
     def generate_spectra(self) -> pd.DataFrame:
+        """
+        Generates normalized Gaussian emission spectra using the object's parameters.
+        
+        Creates a normal distribution using the center wavelength and standard deviation,
+        calculates probability density function values across the wavelength range,
+        and normalizes intensities to maximum of 1.
+
+        Returns:
+            pd.DataFrame: DataFrame containing wavelength values (nm) and normalized intensity counts
+                Columns:
+                    'Wavelength (nm)': Wavelength values from self.xvals
+                    'Counts': Normalized intensity values (0 to 1)
+        """
+        # Create the normalized distribution given the center wavelength, and the standard deviation measure 
         distribution = norm(loc=self.center_wv, scale=self.std_dev)
+        
+        # Obtain the PDF of the given distribution for normalization purposes in the proceeding calculation 
         counts = distribution.pdf(self.xvals)
         
         self.df_ideal = pd.DataFrame({
             'Wavelength (nm)': self.xvals,
             'Counts': counts / np.max(counts)  # Normalize to 1
         })
+
         return self.df_ideal
 
     def calculate_roots(self) -> Tuple[float, float]:
-        """Calculate the roots of the spectra at FWHM points"""
+        """
+        Calculates the wavelength values at Full Width at Half Maximum (FWHM) points.
+        
+        Generates spectra if not already generated, subtracts half maximum from normalized
+        intensity values, and finds roots using UnivariateSpline interpolation.
+
+        Returns:
+            Tuple[float, float]: Lower and upper wavelength values (nm) at half maximum intensity
+        """
         if self.df_ideal is None:
             self.generate_spectra()
         
@@ -111,6 +182,15 @@ class LuminescenceSpectra:
         return roots[0], roots[1]
     
     def get_plot_colour(self) -> str:
+        """
+        Determines plot color based on center wavelength.
+
+        Returns:
+            str: Color name from SPECTRAL_RANGES dictionary
+
+        Raises:
+            ValueError: If center wavelength is outside defined spectral ranges
+        """
         for color, (min_wave, max_wave) in self.SPECTRAL_RANGES.items():
             if min_wave <= self.center_wv <= max_wave:
                 return color
@@ -119,16 +199,31 @@ class LuminescenceSpectra:
     def plot_spectra(self, r1: float, r2: float, 
                     settings: Optional[PlotSettings] = None,
                     save_fig: bool = False) -> None:
+        
+        """
+        Plots normalized emission spectra with FWHM range highlighted.
+
+        Args:
+            r1 (float): Lower FWHM wavelength value
+            r2 (float): Upper FWHM wavelength value
+            settings (Optional[PlotSettings]): Plot configuration settings
+            save_fig (bool): Whether to save plot to outputs directory
+        """
+
+        # Check if the instance of the object had a df_ideal already generated previously, if not call the method and generate the spectra
         if self.df_ideal is None:
             self.generate_spectra()
-            
+        
+        # Take default settings or those custom ones optionally declared in the function
         settings = settings or PlotSettings()
         
+        # Set the standard styling for seaborn plots
         with sns.axes_style('whitegrid', {
             'ytick.left': True,
             'axes.edgecolor': 'black',
             'font.family': 'Times New Roman'
-        }):
+                                            }):
+
             plt.figure(figsize=settings.figsize)
             plot_color = self.get_plot_colour()
             plt.plot(self.xvals, self.df_ideal['Counts'], 
@@ -155,6 +250,12 @@ class LuminescenceSpectra:
             plt.show()
 
     def _set_plot_styling(self, settings: PlotSettings) -> None:
+        """
+        Applies styling to plot elements.
+
+        Args:
+            settings (PlotSettings): Plot configuration settings
+        """
         plt.xticks(fontsize=settings.font_size['ticks'])
         plt.yticks(fontsize=settings.font_size['ticks'])
         plt.ylabel('Normalized Intensity', fontsize=settings.font_size['labels'])
