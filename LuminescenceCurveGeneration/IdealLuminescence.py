@@ -265,7 +265,7 @@ class LuminescenceSpectra:
     
 if __name__ == "__main__":
     # Basic usage
-    spectra = LuminescenceSpectra(center_wv=475)  # Creates spectra at 475nm
+    spectra = LuminescenceSpectra(center_wv=150)  # Creates spectra at 475nm
     df = spectra.generate_spectra()  # Generate the data
     r1, r2 = spectra.calculate_roots()  # Get FWHM points
     spectra.plot_spectra(r1, r2, save_fig=False)  # Plot with default settings
