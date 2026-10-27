@@ -1,9 +1,31 @@
 import pandas as pd
 import numpy as np
+from pathlib import Path
+
+
+def read_spectrum_table(file_path):
+    """Read a CSV or Excel table, including legacy mislabeled files."""
+    path = Path(file_path)
+    suffix = path.suffix.lower()
+
+    if suffix in {'.xls', '.xlsx', '.xlsm'}:
+        return pd.read_excel(path, engine='openpyxl')
+    if suffix in {'.csv', '.txt', '.dat'}:
+        try:
+            return pd.read_csv(path, sep=None, engine='python')
+        except (UnicodeDecodeError, pd.errors.ParserError):
+            # Keep compatibility with the repository's former Excel file
+            # that was distributed with a .csv extension.
+            return pd.read_excel(path, engine='openpyxl')
+
+    raise ValueError(
+        f"Unsupported spectrum file format '{path.suffix}'. "
+        "Use CSV, XLS, XLSX, or XLSM."
+    )
 
 def load_spectrum_from_file(file_path, wavelength_col=0, counts_col=1):
     """
-    Load spectrum from space-delimited file
+    Load spectrum from a CSV or Excel file.
     
     Parameters:
     -----------
@@ -23,7 +45,7 @@ def load_spectrum_from_file(file_path, wavelength_col=0, counts_col=1):
     """
     try:
         # Read space-delimited file with headers
-        data = pd.read_excel(file_path, engine='openpyxl')
+        data = read_spectrum_table(file_path)
         
         # Handle column selection
         if isinstance(wavelength_col, int):

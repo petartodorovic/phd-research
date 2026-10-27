@@ -9,9 +9,10 @@ setup(
         "pandas",
         "scipy",
         "matplotlib",  # Added matplotlib dependency
+        "openpyxl",
     ],
     package_data={
-        'cie_colorimetry': ['data/*.csv'],
+        'cie_colorimetry': ['data/*.csv', 'data/*.xls', 'data/*.xlsx', 'data/*.xlsm'],
     },
     author="Your Name",
     author_email="your.email@example.com",

@@ -2,20 +2,31 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
 import pkg_resources
+from pathlib import Path
+
+from .utils import read_spectrum_table
+
+
+def _load_reference_table(data_dir, stem):
+    """Load a packaged CSV or Excel reference table by filename stem."""
+    for suffix in ('.csv', '.xlsx', '.xlsm', '.xls'):
+        path = Path(data_dir) / f'{stem}{suffix}'
+        if path.exists():
+            return read_spectrum_table(path)
+    raise FileNotFoundError(f"Could not find packaged reference data '{stem}'")
 
 class CIECalculator:
     def __init__(self):
         # Load CIE 1931 color matching functions
-        data_path = pkg_resources.resource_filename('cie_colorimetry', 'data/cie_1931.csv')
-        cie_data = pd.read_csv(data_path)
+        data_dir = pkg_resources.resource_filename('cie_colorimetry', 'data')
+        cie_data = _load_reference_table(data_dir, 'cie_1931')
         self.wavelengths = cie_data['wavelength'].values
         self.x_bar = cie_data['x_bar'].values
         self.y_bar = cie_data['y_bar'].values
         self.z_bar = cie_data['z_bar'].values
         
         # Load spectral locus data
-        locus_path = pkg_resources.resource_filename('cie_colorimetry', 'data/spectral_locus.csv')
-        self.spectral_locus = pd.read_excel(locus_path, engine='openpyxl')
+        self.spectral_locus = _load_reference_table(data_dir, 'spectral_locus')
         
         # Rename columns to match expected format
         if 'Wavelength (nm)' in self.spectral_locus.columns:
@@ -107,7 +118,13 @@ class CIECalculator:
         return x, y
     
     def find_dominant_wavelength(self, x, y):
-        """Calculate dominant wavelength using spectral locus"""
+        """Calculate dominant wavelength using the spectral locus.
+
+        The dominant wavelength is where the ray from the reference white point
+        through the sample chromaticity intersects the visible spectral locus.
+        Packaged locus points beyond 700 nm are placeholders for the white point,
+        so they are excluded from the intersection search.
+        """
         # Reference white point (Illuminant E)
         xw, yw = 0.3333, 0.3333
         
@@ -116,29 +133,41 @@ class CIECalculator:
         spectral_y = self.spectral_locus['y'].values
         spectral_wavelengths = self.spectral_locus['wavelength'].values
         
-        # Find intersection of line from white point through sample point to spectral locus
-        dx = x - xw
-        dy = y - yw
-        
-        # Calculate intersections with all line segments of spectral locus
+        # Ray from the white point through the sample point: p + t*r, t > 0.
+        p = np.array([xw, yw], dtype=float)
+        r = np.array([x - xw, y - yw], dtype=float)
+        if np.linalg.norm(r) < 1e-12:
+            return None
+
+        def cross(a, b):
+            return a[0] * b[1] - a[1] * b[0]
+
+        intersections = []
         for i in range(len(spectral_x) - 1):
-            x1, y1 = spectral_x[i], spectral_y[i]
-            x2, y2 = spectral_x[i + 1], spectral_y[i + 1]
-            
-            # Line intersection calculation
-            denominator = (x2 - x1) * dy - (y2 - y1) * dx
-            if abs(denominator) < 1e-10:  # Avoid division by zero
+            wavelength_start = spectral_wavelengths[i]
+            wavelength_end = spectral_wavelengths[i + 1]
+            if not (380 <= wavelength_start <= 700 and 380 <= wavelength_end <= 700):
                 continue
-                
-            ua = ((x2 - x1) * (yw - y1) - (y2 - y1) * (xw - x1)) / denominator
-            ub = (dx * (yw - y1) - dy * (xw - x1)) / denominator
-            
-            if 0 <= ub <= 1 and ua >= 0:
-                # Interpolate wavelength at intersection point
-                wavelength = spectral_wavelengths[i] + ub * (spectral_wavelengths[i + 1] - spectral_wavelengths[i])
-                return wavelength
-        
-        return None
+
+            q = np.array([spectral_x[i], spectral_y[i]], dtype=float)
+            s = np.array([
+                spectral_x[i + 1] - spectral_x[i],
+                spectral_y[i + 1] - spectral_y[i],
+            ])
+            denominator = cross(r, s)
+            if abs(denominator) < 1e-12:
+                continue
+
+            offset = q - p
+            ray_distance = cross(offset, s) / denominator
+            segment_position = cross(offset, r) / denominator
+            if ray_distance > 1e-12 and 0 <= segment_position <= 1:
+                wavelength = wavelength_start + segment_position * (wavelength_end - wavelength_start)
+                intersections.append((ray_distance, wavelength))
+
+        if not intersections:
+            return None
+        return min(intersections, key=lambda hit: hit[0])[1]
     
     def calculate_saturation(self, x, y, dominant_wavelength):
         """Calculate color saturation"""
