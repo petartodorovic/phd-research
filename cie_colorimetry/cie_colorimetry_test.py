@@ -155,7 +155,8 @@ def test_plotting(results):
             plot_cie_coordinates(
                 r['x'], r['y'],
                 label=f"{r['name']}\nλd={r['dominant_wavelength']:.1f}nm\nS={r['saturation']:.1f}%",
-                show_plot=False
+                show_plot=False,
+                ax=plt.gca()
             )
             plt.title(f"{r['name']} Spectrum")
             

@@ -19,7 +19,7 @@ from cie_colorimetry import (
 )
 from cie_colorimetry.utils import load_spectrum_from_file
 
-# Load spectrum from file (wavelength in first column, photon counts in second)
+# Load spectrum from a CSV or Excel file (wavelength in first column, photon counts in second)
 wavelengths, photon_counts = load_spectrum_from_file("spectrum.csv")
 
 # Or specify columns by name
@@ -49,7 +49,7 @@ plot_cie_coordinates(x, y, label=f"λd={dominant_wavelength:.1f}nm\nS={saturatio
 
 ## Data Format
 
-The spectrum file should be a CSV file with two columns:
+The spectrum file can be a CSV (`.csv`) or Excel (`.xls`, `.xlsx`, or `.xlsm`) file with two columns:
 1. Wavelength (in nanometers, micrometers, or meters)
 2. Photon counts (arbitrary units)
 
@@ -59,11 +59,13 @@ The package will automatically:
 - Handle negative or NaN values
 - Interpolate the spectrum to match CIE wavelength points
 
+CSV files may use comma, tab, or whitespace delimiters. Excel files are read from their first worksheet.
+
 ## Required Data Files
 
-The package requires two CSV files in the `cie_colorimetry/data/` directory:
+The package requires two reference files in the `cie_colorimetry/data/` directory:
 
 1. `cie_1931.csv`: CIE 1931 2-degree color matching functions
-2. `spectral_locus.csv`: Spectral locus data
+2. `spectral_locus.xlsx`: Spectral locus data
 
 Both files should be included in the package distribution.
