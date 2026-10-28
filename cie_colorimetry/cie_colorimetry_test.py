@@ -145,7 +145,7 @@ def test_plotting(results):
     """Test plotting functionality"""
     try:
         # Create a figure with subplots for comparison
-        plt.figure(figsize=(10, 8))
+        plt.figure(figsize=(15, 8))
         
         for i, r in enumerate(results):
             # Plot each result
@@ -160,9 +160,9 @@ def test_plotting(results):
             )
             plt.title(f"{r['name']} Spectrum")
             
-        # Adjust layout and show
-        plt.tight_layout()
-        plt.suptitle("CIE 1931 Chromaticity Results for Different Spectra", y=1.02, fontsize=16)
+        # Add the title first, then reserve space for it so it isn't cut off
+        plt.suptitle("CIE 1931 Chromaticity Results for Different Spectra", fontsize=16)
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
         
         # Save the plot
         plt.savefig("colorimetry_results.png", dpi=300, bbox_inches='tight')

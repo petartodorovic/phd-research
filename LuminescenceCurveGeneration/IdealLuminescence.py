@@ -56,7 +56,7 @@ class LuminescenceSpectra:
     SPECTRAL_RANGES = {
         'indigo': (100, 200),
         'darkviolet': (200, 280),
-        'blueviolet': (380, 315),
+        'blueviolet': (280, 315),
         'darkorchid': (315, 380),
         'violet': (380, 450),
         'blue': (450, 475),
