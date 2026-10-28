@@ -2,9 +2,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from pathlib import Path
-import pkg_resources
 
-from .colorimetry import _load_reference_table
+from .colorimetry import DATA_DIR, _load_reference_table
 
 def plot_cie_coordinates(x, y, label=None, save_path=None, show_plot=True, ax=None):
     """
@@ -30,7 +29,7 @@ def plot_cie_coordinates(x, y, label=None, save_path=None, show_plot=True, ax=No
         fig = ax.figure
 
     # Load spectral locus data
-    data_dir = pkg_resources.resource_filename('cie_colorimetry', 'data')
+    data_dir = DATA_DIR
     spectral_locus = _load_reference_table(data_dir, 'spectral_locus')
     
     # Check if we need to generate CIE coordinates and rename columns

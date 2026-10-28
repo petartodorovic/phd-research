@@ -1,10 +1,14 @@
 import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
-import pkg_resources
 from pathlib import Path
 
 from .utils import read_spectrum_table
+
+DATA_DIR = Path(__file__).resolve().parent / 'data'
+
+# np.trapz was renamed to np.trapezoid in NumPy 2.0
+_trapezoid = getattr(np, 'trapezoid', None) or np.trapz
 
 
 def _load_reference_table(data_dir, stem):
@@ -18,7 +22,7 @@ def _load_reference_table(data_dir, stem):
 class CIECalculator:
     def __init__(self):
         # Load CIE 1931 color matching functions
-        data_dir = pkg_resources.resource_filename('cie_colorimetry', 'data')
+        data_dir = DATA_DIR
         cie_data = _load_reference_table(data_dir, 'cie_1931')
         self.wavelengths = cie_data['wavelength'].values
         self.x_bar = cie_data['x_bar'].values
@@ -81,11 +85,11 @@ class CIECalculator:
     
     def interpolate_spectrum(self, wavelengths, intensities):
         """Interpolate spectrum to match CIE wavelength points"""
-        # Convert wavelengths to nanometers if in meters
-        if np.median(wavelengths) < 100:  # Assume wavelengths are in micrometers
-            wavelengths = wavelengths * 1000
-        elif np.median(wavelengths) < 0.1:  # Assume wavelengths are in meters
+        # Convert wavelengths to nanometers; check the smallest unit first
+        if np.median(wavelengths) < 0.1:  # Assume wavelengths are in meters
             wavelengths = wavelengths * 1e9
+        elif np.median(wavelengths) < 100:  # Assume wavelengths are in micrometers
+            wavelengths = wavelengths * 1000
             
         # Convert photon counts to energy
         energy_intensities = self.convert_photon_counts_to_energy(wavelengths, intensities)
@@ -100,9 +104,9 @@ class CIECalculator:
         spectrum = self.interpolate_spectrum(wavelengths, photon_counts)
         
         # Calculate tristimulus values
-        X = np.trapz(spectrum * self.x_bar, self.wavelengths)
-        Y = np.trapz(spectrum * self.y_bar, self.wavelengths)
-        Z = np.trapz(spectrum * self.z_bar, self.wavelengths)
+        X = _trapezoid(spectrum * self.x_bar, self.wavelengths)
+        Y = _trapezoid(spectrum * self.y_bar, self.wavelengths)
+        Z = _trapezoid(spectrum * self.z_bar, self.wavelengths)
         
         return X, Y, Z
     
