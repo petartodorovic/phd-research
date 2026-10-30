@@ -3,6 +3,16 @@ import numpy as np
 from pathlib import Path
 
 
+def to_nanometers(wavelengths):
+    """Convert wavelengths to nanometers, inferring the unit from their median value"""
+    wavelengths = np.asarray(wavelengths, dtype=float)
+    # Check the smallest unit first
+    if np.median(wavelengths) < 0.1:  # Assume wavelengths are in meters
+        return wavelengths * 1e9
+    if np.median(wavelengths) < 100:  # Assume wavelengths are in micrometers
+        return wavelengths * 1000
+    return wavelengths
+
 def read_spectrum_table(file_path):
     """Read a CSV or Excel table, including legacy mislabeled files."""
     path = Path(file_path)
