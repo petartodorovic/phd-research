@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
+from functools import lru_cache
 from pathlib import Path
 
 from .utils import read_spectrum_table
@@ -38,46 +39,21 @@ class CIECalculator:
         
         # Create x, y coordinates if they don't exist (based on CIE standard)
         if 'x' not in self.spectral_locus.columns or 'y' not in self.spectral_locus.columns:
-            # Using wavelength to compute standard CIE xy coordinates
-            # This is an approximation - replace with precise values when available
             self.generate_spectral_locus_coordinates()
-    
+
     def generate_spectral_locus_coordinates(self):
-        """Generate x,y coordinates for the spectral locus based on wavelengths"""
+        """Generate x,y coordinates for the spectral locus from the colour matching functions"""
         wavelengths = self.spectral_locus['wavelength'].values
-        x_coords = []
-        y_coords = []
-        
-        # Standard approximation for spectral locus coordinates
-        for wl in wavelengths:
-            # Map visible wavelength range to appropriate xy chromaticity coordinates
-            # Based on standard CIE 1931 color space
-            if 380 <= wl <= 700:
-                # Find closest matching wavelength in CIE data
-                idx = np.argmin(np.abs(self.wavelengths - wl))
-                X = self.x_bar[idx]
-                Y = self.y_bar[idx]
-                Z = self.z_bar[idx]
-                
-                # Convert to chromaticity coordinates
-                sum_XYZ = X + Y + Z
-                if sum_XYZ > 0:
-                    x = X / sum_XYZ
-                    y = Y / sum_XYZ
-                else:
-                    x = 0
-                    y = 0
-                
-                x_coords.append(x)
-                y_coords.append(y)
-            else:
-                # Outside visible range
-                x_coords.append(0.3333)
-                y_coords.append(0.3333)
-        
-        # Add to dataframe
-        self.spectral_locus['x'] = x_coords
-        self.spectral_locus['y'] = y_coords
+
+        # Find closest matching wavelength in CIE data for each locus point
+        idx = np.abs(self.wavelengths[None, :] - wavelengths[:, None]).argmin(axis=1)
+        X, Y, Z = self.x_bar[idx], self.y_bar[idx], self.z_bar[idx]
+
+        # Convert to chromaticity coordinates, using (0, 0) where X + Y + Z is zero
+        sum_XYZ = X + Y + Z
+        safe_sum = np.where(sum_XYZ > 0, sum_XYZ, 1)
+        self.spectral_locus['x'] = np.where(sum_XYZ > 0, X / safe_sum, 0)
+        self.spectral_locus['y'] = np.where(sum_XYZ > 0, Y / safe_sum, 0)
     
     def convert_photon_counts_to_energy(self, wavelengths, photon_counts):
         """Convert photon counts to energy/power units"""
@@ -126,8 +102,8 @@ class CIECalculator:
 
         The dominant wavelength is where the ray from the reference white point
         through the sample chromaticity intersects the visible spectral locus.
-        Packaged locus points beyond 700 nm are placeholders for the white point,
-        so they are excluded from the intersection search.
+        Locus points beyond 700 nm are nearly coincident in chromaticity, so they
+        are excluded from the intersection search.
         """
         # Reference white point (Illuminant E)
         xw, yw = 0.3333, 0.3333
@@ -200,19 +176,22 @@ class CIECalculator:
         
         return saturation
 
+@lru_cache(maxsize=None)
+def get_calculator():
+    """Return a shared CIECalculator so reference data is loaded from disk only once"""
+    return CIECalculator()
+
 def calculate_cie_coordinates(wavelengths, photon_counts):
     """Calculate CIE xy coordinates from wavelengths and photon counts"""
-    calculator = CIECalculator()
+    calculator = get_calculator()
     X, Y, Z = calculator.calculate_xyz(wavelengths, photon_counts)
     x, y = calculator.calculate_xy(X, Y, Z)
     return x, y
 
 def calculate_dominant_wavelength(x, y):
     """Calculate dominant wavelength from CIE coordinates"""
-    calculator = CIECalculator()
-    return calculator.find_dominant_wavelength(x, y)
+    return get_calculator().find_dominant_wavelength(x, y)
 
 def calculate_saturation(x, y, dominant_wavelength):
     """Calculate color saturation"""
-    calculator = CIECalculator()
-    return calculator.calculate_saturation(x, y, dominant_wavelength)
+    return get_calculator().calculate_saturation(x, y, dominant_wavelength)
