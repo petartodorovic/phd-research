@@ -4,9 +4,13 @@ from scipy.interpolate import interp1d
 from functools import lru_cache
 from pathlib import Path
 
-from .utils import read_spectrum_table
+from .models import ColorimetryResult, Spectrum
+from .utils import read_spectrum_table, to_nanometers
 
 DATA_DIR = Path(__file__).resolve().parent / 'data'
+
+# Reference white point (Illuminant E)
+WHITE_POINT = (1 / 3, 1 / 3)
 
 # np.trapz was renamed to np.trapezoid in NumPy 2.0
 _trapezoid = getattr(np, 'trapezoid', None) or np.trapz
@@ -61,12 +65,8 @@ class CIECalculator:
     
     def interpolate_spectrum(self, wavelengths, intensities):
         """Interpolate spectrum to match CIE wavelength points"""
-        # Convert wavelengths to nanometers; check the smallest unit first
-        if np.median(wavelengths) < 0.1:  # Assume wavelengths are in meters
-            wavelengths = wavelengths * 1e9
-        elif np.median(wavelengths) < 100:  # Assume wavelengths are in micrometers
-            wavelengths = wavelengths * 1000
-            
+        wavelengths = to_nanometers(wavelengths)
+
         # Convert photon counts to energy
         energy_intensities = self.convert_photon_counts_to_energy(wavelengths, intensities)
         
@@ -105,9 +105,8 @@ class CIECalculator:
         Locus points beyond 700 nm are nearly coincident in chromaticity, so they
         are excluded from the intersection search.
         """
-        # Reference white point (Illuminant E)
-        xw, yw = 0.3333, 0.3333
-        
+        xw, yw = WHITE_POINT
+
         # Get spectral locus data
         spectral_x = self.spectral_locus['x'].values
         spectral_y = self.spectral_locus['y'].values
@@ -153,9 +152,8 @@ class CIECalculator:
         """Calculate color saturation"""
         if dominant_wavelength is None:
             return 0
-            
-        # Reference white point (Illuminant E)
-        xw, yw = 0.3333, 0.3333
+
+        xw, yw = WHITE_POINT
         
         # Find spectral locus point for dominant wavelength
         # Use nearest wavelength if exact match not found
@@ -195,3 +193,33 @@ def calculate_dominant_wavelength(x, y):
 def calculate_saturation(x, y, dominant_wavelength):
     """Calculate color saturation"""
     return get_calculator().calculate_saturation(x, y, dominant_wavelength)
+
+def analyze_spectrum(spectrum, photon_counts=None):
+    """
+    Calculate all colorimetry parameters for a spectrum.
+
+    Parameters:
+    -----------
+    spectrum : Spectrum or array-like
+        A Spectrum, or wavelength values when photon_counts is also given
+    photon_counts : array-like, optional
+        Photon counts, required when spectrum is a wavelength array
+
+    Returns:
+    --------
+    ColorimetryResult
+    """
+    if photon_counts is not None:
+        spectrum = Spectrum(spectrum, photon_counts)
+    elif not isinstance(spectrum, Spectrum):
+        raise TypeError("Pass a Spectrum, or wavelengths and photon_counts")
+
+    x, y = calculate_cie_coordinates(spectrum.wavelengths, spectrum.counts)
+    dominant_wavelength = calculate_dominant_wavelength(x, y)
+    return ColorimetryResult(
+        x=x,
+        y=y,
+        dominant_wavelength=dominant_wavelength,
+        saturation=calculate_saturation(x, y, dominant_wavelength),
+        peak_wavelength=spectrum.peak_wavelength,
+    )

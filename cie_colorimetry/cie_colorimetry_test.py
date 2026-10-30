@@ -21,6 +21,10 @@ except ImportError as e:
     print(f"Error importing cie_colorimetry: {e}")
     exit(1)
 
+def format_wavelength(wavelength):
+    """Format a dominant wavelength, which is None when it cannot be determined"""
+    return "n/a" if wavelength is None else f"{wavelength:.1f}"
+
 def create_test_spectrum(output_path="test_spectrum.csv"):
     """Create a test spectrum file for testing"""
     # Create a Gaussian spectrum centered at 550 nm (green)
@@ -91,7 +95,7 @@ def test_colorimetry_calculation(wavelengths, counts):
         
         print("\nColorimetry Results:")
         print(f"CIE coordinates: (x={x:.4f}, y={y:.4f})")
-        print(f"Dominant wavelength: {dominant_wavelength:.1f} nm")
+        print(f"Dominant wavelength: {format_wavelength(dominant_wavelength)} nm")
         print(f"Saturation: {saturation:.1f}%")
         
         return x, y, dominant_wavelength, saturation
@@ -137,7 +141,7 @@ def test_multiple_spectra():
     print(f"{'Color':<10} {'x':<10} {'y':<10} {'Dom. WL (nm)':<15} {'Saturation (%)':<15}")
     print("-" * 60)
     for r in results:
-        print(f"{r['name']:<10} {r['x']:<10.4f} {r['y']:<10.4f} {r['dominant_wavelength']:<15.1f} {r['saturation']:<15.1f}")
+        print(f"{r['name']:<10} {r['x']:<10.4f} {r['y']:<10.4f} {format_wavelength(r['dominant_wavelength']):<15} {r['saturation']:<15.1f}")
     
     return results
 
@@ -154,7 +158,7 @@ def test_plotting(results):
             
             plot_cie_coordinates(
                 r['x'], r['y'],
-                label=f"{r['name']}\nλd={r['dominant_wavelength']:.1f}nm\nS={r['saturation']:.1f}%",
+                label=f"{r['name']}\nλd={format_wavelength(r['dominant_wavelength'])}nm\nS={r['saturation']:.1f}%",
                 show_plot=False,
                 ax=plt.gca()
             )

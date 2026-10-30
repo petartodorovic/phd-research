@@ -47,6 +47,25 @@ print(f"Saturation: {saturation:.1f}%")
 plot_cie_coordinates(x, y, label=f"λd={dominant_wavelength:.1f}nm\nS={saturation:.1f}%")
 ```
 
+### All-in-one analysis
+
+`analyze_spectrum` returns every parameter as a `ColorimetryResult`. It accepts a `Spectrum` (wavelengths stored in nm) or plain wavelength and count arrays:
+
+```python
+from cie_colorimetry import Spectrum, analyze_spectrum
+
+spectrum = Spectrum.from_file("spectrum.csv")
+result = analyze_spectrum(spectrum)  # or analyze_spectrum(wavelengths, photon_counts)
+
+print(f"CIE coordinates: ({result.x:.3f}, {result.y:.3f})")
+print(f"Peak wavelength: {result.peak_wavelength:.1f} nm")
+if result.dominant_wavelength is not None:
+    print(f"Dominant wavelength: {result.dominant_wavelength:.1f} nm")
+print(f"Saturation: {result.saturation:.1f}%")
+```
+
+`dominant_wavelength` is `None` when the ray from the white point (Illuminant E, `WHITE_POINT`) through the sample does not reach the visible spectral locus, for example for purple colours.
+
 ## Data Format
 
 The spectrum file can be a CSV (`.csv`) or Excel (`.xls`, `.xlsx`, or `.xlsm`) file with two columns:

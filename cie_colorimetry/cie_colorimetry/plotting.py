@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .colorimetry import get_calculator
+from .colorimetry import WHITE_POINT, get_calculator
 
 def plot_cie_coordinates(x, y, label=None, save_path=None, show_plot=True, ax=None):
     """
@@ -54,7 +54,7 @@ def plot_cie_coordinates(x, y, label=None, save_path=None, show_plot=True, ax=No
                         fontsize=8)
     
     # Plot white point (Illuminant E)
-    ax.plot(1/3, 1/3, 'k+', markersize=10, label='White Point (E)')
+    ax.plot(*WHITE_POINT, 'k+', markersize=10, label='White Point (E)')
     
     # Plot sample point
     ax.plot(x, y, 'ro', markersize=8, label='Sample')
