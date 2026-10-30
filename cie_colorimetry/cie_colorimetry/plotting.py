@@ -1,9 +1,7 @@
 import matplotlib.pyplot as plt
-import pandas as pd
 import numpy as np
-from pathlib import Path
 
-from .colorimetry import DATA_DIR, _load_reference_table
+from .colorimetry import get_calculator
 
 def plot_cie_coordinates(x, y, label=None, save_path=None, show_plot=True, ax=None):
     """
@@ -28,53 +26,9 @@ def plot_cie_coordinates(x, y, label=None, save_path=None, show_plot=True, ax=No
     else:
         fig = ax.figure
 
-    # Load spectral locus data
-    data_dir = DATA_DIR
-    spectral_locus = _load_reference_table(data_dir, 'spectral_locus')
-    
-    # Check if we need to generate CIE coordinates and rename columns
-    if 'Wavelength (nm)' in spectral_locus.columns:
-        spectral_locus = spectral_locus.rename(columns={'Wavelength (nm)': 'wavelength'})
-    
-    # Generate x, y coordinates if they don't exist
-    if 'x' not in spectral_locus.columns or 'y' not in spectral_locus.columns:
-        print("Generating CIE coordinates from wavelengths...")
-        # Load CIE 1931 color matching functions
-        cie_data = _load_reference_table(data_dir, 'cie_1931')
-        
-        # Prepare interpolation functions
-        wavelengths = cie_data['wavelength'].values
-        x_bar = cie_data['x_bar'].values
-        y_bar = cie_data['y_bar'].values
-        z_bar = cie_data['z_bar'].values
-        
-        # Compute chromaticity coordinates for each wavelength
-        spec_x = []
-        spec_y = []
-        
-        for wl in spectral_locus['wavelength'].values:
-            # Find closest matching wavelength in CIE data
-            idx = np.argmin(np.abs(wavelengths - wl))
-            X = x_bar[idx]
-            Y = y_bar[idx]
-            Z = z_bar[idx]
-            
-            # Convert to chromaticity coordinates
-            sum_XYZ = X + Y + Z
-            if sum_XYZ > 0:
-                x_coord = X / sum_XYZ
-                y_coord = Y / sum_XYZ
-            else:
-                x_coord = 0
-                y_coord = 0
-            
-            spec_x.append(x_coord)
-            spec_y.append(y_coord)
-        
-        # Add to dataframe
-        spectral_locus['x'] = spec_x
-        spectral_locus['y'] = spec_y
-    
+    # Spectral locus data is shared with (and cached by) the colorimetry calculator
+    spectral_locus = get_calculator().spectral_locus
+
     # Plot spectral locus
     ax.plot(spectral_locus['x'], spectral_locus['y'], 'k-', linewidth=1)
     
