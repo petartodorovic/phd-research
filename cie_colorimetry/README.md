@@ -66,6 +66,29 @@ print(f"Saturation: {result.saturation:.1f}%")
 
 `dominant_wavelength` is `None` when the ray from the white point (Illuminant E, `WHITE_POINT`) through the sample does not reach the visible spectral locus, for example for purple colours.
 
+### 3D plots
+
+Both plots take `Spectrum` objects, mark each spectrum's dominant (◆) and peak (▲) wavelengths, and return the `ColorimetryResult` for each spectrum.
+
+```python
+from cie_colorimetry import Spectrum, plot_cie_3d, plot_spectra_waterfall
+
+samples = [Spectrum.from_file(path) for path in ["blue.csv", "green.csv", "red.csv"]]
+
+# Spectra standing on the CIE 1931 diagram, with the ray from the white point
+# through each sample to its dominant wavelength (up to 8 spectra)
+plot_cie_3d(samples, labels=["Blue", "Green", "Red"],
+            colors=["#2a78d6", "#008300", "#e34948"], save_path="cie_3d.png")
+
+# An ordered series (e.g. a temperature sweep) one behind another, with trend
+# lines showing how the dominant and peak wavelengths shift
+sweep = [Spectrum.from_file(f"sample_{t}K.csv") for t in (100, 150, 200, 250)]
+plot_spectra_waterfall(sweep, labels=["100 K", "150 K", "200 K", "250 K"],
+                       save_path="waterfall.png")
+```
+
+Each spectrum is normalized to a maximum of 1 unless `normalize=False`. Use `elev` and `azim` to change the camera angle, and pass `ax` (a 3D axis) to draw into an existing figure.
+
 ## Data Format
 
 The spectrum file can be a CSV (`.csv`) or Excel (`.xls`, `.xlsx`, or `.xlsm`) file with two columns:
